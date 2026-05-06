@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FinanceAPI — Login</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<div class="auth-wrapper">
+  <div class="auth-card">
+    <h1>💰 FinanceAPI</h1>
+    <p class="subtitle">Track your expenses with ease</p>
+
+    <div class="tabs">
+      <button class="tab-btn active" id="tab-login" onclick="switchTab('login')">Login</button>
+      <button class="tab-btn" id="tab-register" onclick="switchTab('register')">Register</button>
+    </div>
+
+    <!-- LOGIN -->
+    <form id="login-form" onsubmit="handleLogin(event)">
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" id="login-username" placeholder="Enter username" required autocomplete="username" />
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="login-password" placeholder="Enter password" required autocomplete="current-password" />
+      </div>
+      <button type="submit" class="btn btn-primary" id="login-btn">Login</button>
+      <div class="alert error" id="login-error"></div>
+    </form>
+
+    <!-- REGISTER -->
+    <form id="register-form" style="display:none" onsubmit="handleRegister(event)">
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" id="reg-username" placeholder="Choose a username" required autocomplete="username" />
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="reg-password" placeholder="Choose a password" required autocomplete="new-password" />
+      </div>
+      <button type="submit" class="btn btn-primary" id="reg-btn">Create account</button>
+      <div class="alert error" id="reg-error"></div>
+      <div class="alert success" id="reg-success"></div>
+    </form>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+  // Redirect if already logged in
+  if (localStorage.getItem('token')) {
+    window.location.href = 'dashboard.html';
+  }
+
+  function switchTab(tab) {
+    document.getElementById('login-form').style.display    = tab === 'login'    ? 'block' : 'none';
+    document.getElementById('register-form').style.display = tab === 'register' ? 'block' : 'none';
+    document.getElementById('tab-login').classList.toggle('active',    tab === 'login');
+    document.getElementById('tab-register').classList.toggle('active', tab === 'register');
+  }
+
+  function showAlert(id, msg) {
+    const el = document.getElementById(id);
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+
+  function hideAlerts(...ids) {
+    ids.forEach(id => { document.getElementById(id).style.display = 'none'; });
+  }
+
+  async function handleLogin(e) {
+    e.preventDefault();
+    hideAlerts('login-error');
+    const btn = document.getElementById('login-btn');
+    const username = document.getElementById('login-username').value.trim();
+    const password = document.getElementById('login-password').value;
+
+    btn.textContent = 'Logging in...';
+    btn.disabled = true;
+
+    try {
+      const data = await Auth.login(username, password);
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('username', data.username);
+      window.location.href = 'dashboard.html';
+    } catch (err) {
+      showAlert('login-error', err.message);
+    } finally {
+      btn.textContent = 'Login';
+      btn.disabled = false;
+    }
+  }
+
+  async function handleRegister(e) {
+    e.preventDefault();
+    hideAlerts('reg-error', 'reg-success');
+    const btn = document.getElementById('reg-btn');
+    const username = document.getElementById('reg-username').value.trim();
+    const password = document.getElementById('reg-password').value;
+
+    btn.textContent = 'Creating account...';
+    btn.disabled = true;
+
+    try {
+      await Auth.register(username, password);
+      showAlert('reg-success', 'Account created! You can now login.');
+      document.getElementById('register-form').reset();
+      setTimeout(() => switchTab('login'), 1500);
+    } catch (err) {
+      showAlert('reg-error', err.message);
+    } finally {
+      btn.textContent = 'Create account';
+      btn.disabled = false;
+    }
+  }
+</script>
+</body>
+</html>

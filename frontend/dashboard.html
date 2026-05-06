@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FinanceAPI — Dashboard</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<div class="dashboard">
+
+  <!-- NAVBAR -->
+  <nav class="navbar">
+    <span class="logo">💰 FinanceAPI</span>
+    <div class="nav-right">
+      <span class="username" id="nav-username"></span>
+      <button class="logout-btn" onclick="logout()">Logout</button>
+    </div>
+  </nav>
+
+  <div class="main">
+
+    <!-- STATS -->
+    <div class="stats-row">
+      <div class="stat-card total">
+        <div class="stat-label">Total spent</div>
+        <div class="stat-value" id="stat-total">$0</div>
+      </div>
+      <div class="stat-card count">
+        <div class="stat-label">Expenses</div>
+        <div class="stat-value" id="stat-count">0</div>
+      </div>
+      <div class="stat-card avg">
+        <div class="stat-label">Average</div>
+        <div class="stat-value" id="stat-avg">$0</div>
+      </div>
+    </div>
+
+    <!-- ADD EXPENSE FORM -->
+    <div class="add-form">
+      <div class="section-title">Add expense</div>
+      <form onsubmit="handleCreate(event)">
+        <div class="form-row">
+          <div class="form-group" style="margin:0">
+            <label>Title</label>
+            <input type="text" id="f-title" placeholder="e.g. Groceries" required />
+          </div>
+          <div class="form-group" style="margin:0">
+            <label>Category</label>
+            <select id="f-category">
+              <option value="Food">🍕 Food</option>
+              <option value="Transport">🚗 Transport</option>
+              <option value="Housing">🏠 Housing</option>
+              <option value="Health">💊 Health</option>
+              <option value="Entertainment">🎮 Entertainment</option>
+              <option value="Shopping">🛍️ Shopping</option>
+              <option value="Education">📚 Education</option>
+              <option value="Other">📦 Other</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label>Amount ($)</label>
+            <input type="number" id="f-amount" placeholder="0.00" min="0.01" step="0.01" required />
+          </div>
+          <button type="submit" class="btn btn-primary" id="add-btn">Add</button>
+        </div>
+        <div class="alert error" id="add-error" style="margin-top:12px"></div>
+      </form>
+    </div>
+
+    <!-- EXPENSES LIST -->
+    <div class="section-title">Your expenses</div>
+    <div class="expenses-list">
+      <div class="list-header">
+        <span>Title</span>
+        <span>Category</span>
+        <span>Amount</span>
+        <span></span>
+      </div>
+      <div id="expenses-body">
+        <div class="loading">Loading...</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+  // Guard: redirect if not logged in
+  if (!localStorage.getItem('token')) {
+    window.location.href = 'index.html';
+  }
+
+  document.getElementById('nav-username').textContent =
+    localStorage.getItem('username') || 'User';
+
+  let expenses = [];
+
+  function logout() {
+    localStorage.clear();
+    window.location.href = 'index.html';
+  }
+
+  function formatMoney(n) {
+    return '$' + parseFloat(n).toFixed(2);
+  }
+
+  function updateStats() {
+    const total = expenses.reduce((s, e) => s + e.amount, 0);
+    const count = expenses.length;
+    const avg   = count ? total / count : 0;
+
+    document.getElementById('stat-total').textContent = formatMoney(total);
+    document.getElementById('stat-count').textContent = count;
+    document.getElementById('stat-avg').textContent   = formatMoney(avg);
+  }
+
+  function renderExpenses() {
+    const body = document.getElementById('expenses-body');
+
+    if (expenses.length === 0) {
+      body.innerHTML = `
+        <div class="empty-state">
+          <div class="icon">📭</div>
+          <p>No expenses yet. Add your first one above!</p>
+        </div>`;
+      return;
+    }
+
+    body.innerHTML = expenses.map(e => `
+      <div class="expense-item" id="row-${e.id}">
+        <span class="title">${escHtml(e.title)}</span>
+        <span><span class="category">${escHtml(e.category)}</span></span>
+        <span class="amount">${formatMoney(e.amount)}</span>
+        <div class="actions">
+          <button class="btn btn-danger" onclick="handleDelete(${e.id})">Delete</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function escHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  async function loadExpenses() {
+    try {
+      expenses = await Expenses.getAll();
+      updateStats();
+      renderExpenses();
+    } catch (err) {
+      if (err.message.includes('401') || err.message.toLowerCase().includes('unauthorized')) {
+        logout();
+      }
+      document.getElementById('expenses-body').innerHTML =
+        `<div class="empty-state"><p>Failed to load expenses.</p></div>`;
+    }
+  }
+
+  async function handleCreate(e) {
+    e.preventDefault();
+    const alertEl = document.getElementById('add-error');
+    alertEl.style.display = 'none';
+
+    const btn      = document.getElementById('add-btn');
+    const title    = document.getElementById('f-title').value.trim();
+    const category = document.getElementById('f-category').value;
+    const amount   = document.getElementById('f-amount').value;
+
+    btn.textContent = 'Adding...';
+    btn.disabled    = true;
+
+    try {
+      const newExpense = await Expenses.create(title, category, amount);
+      expenses.unshift(newExpense);
+      updateStats();
+      renderExpenses();
+      e.target.reset();
+    } catch (err) {
+      alertEl.textContent    = err.message;
+      alertEl.style.display  = 'block';
+    } finally {
+      btn.textContent = 'Add';
+      btn.disabled    = false;
+    }
+  }
+
+  async function handleDelete(id) {
+    const row = document.getElementById(`row-${id}`);
+    const btn = row.querySelector('button');
+    btn.textContent = '...';
+    btn.disabled    = true;
+
+    try {
+      await Expenses.delete(id);
+      expenses = expenses.filter(e => e.id !== id);
+      updateStats();
+      renderExpenses();
+    } catch (err) {
+      btn.textContent = 'Delete';
+      btn.disabled    = false;
+      alert('Failed to delete: ' + err.message);
+    }
+  }
+
+  loadExpenses();
+</script>
+</body>
+</html>
